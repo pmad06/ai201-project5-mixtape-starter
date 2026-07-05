@@ -29,3 +29,97 @@
 
 # Plan
 Tackling: streak reset (#1), search duplicates (#3), playlist last-song bug (#5) first 
+
+## Root Cause Analysis 
+
+# Issue #1 - Listening streak keeps resetting 
+
+**How I reproduced it**: Opened a flash shell and called update_listening_streak() on a seeded user. Set the user's listening streak to 3 and last_listened_at to a confirmed Saturday, then called the function with "now" set to the next day. Confirmed sunday.weekend() printed 6 which resulted in the streak going from 3 to 1, instead of increasing. Ran an identical scenario with "now" set to a Monday instead, where the streak went from 3 to 4. So, only Sunday produced the wrong result. 
+
+**How I found the root cause**: Read update_listening_streak() inside services/streak_service.py. The branch that needed to be edited:
+
+elif days_since_last == 1 and today.weekday() != 6:
+    user.listening_streak += 1
+else:
+    user.listening_streak = 1
+
+Since today.weekday() returned 6 for Sunday, today.weekday() != 6 evaluates to False on a Sunday. Traced the boolean logic: with
+days_since_last == 1 (True) and today.weekday() != 6 (False) on a
+Sunday, True and False evaluates to False, so the elif doesn't fire
+and execution falls through to else, resetting the streak to 1.
+
+**The root cause**: The first elif statement has an extra condition, today.weekday() != 6, which excludes Sunday from incrementing the streak. Since the condition is written as an exclusion rather than a special case, it disables the increment entirely on Sundays, which results in the else statement to be true and the streak resetting to 1 instead. 
+
+**My fix and side-effect check**: Remove the today.weekday() != 6 clause from the elif statement. This matched the documented rule, which was a one-day gap always increments, regardless of a weekday. Re-ran the Sunday reproduction test after the fix and streak went from 3 to 4. Made sure there were no side effects by re-running the Monday case, as the streak incremented from 3 to 4. Updated branch: 
+
+elif days_since_last == 1:
+    user.listening_streak += 1
+
+
+# Issue #4 - No Notification when a friend rates a shared song 
+
+**How I reproduced it**: In flask shell, picked a seeded song and its
+original sharer, then found a different user to act as the rater. Called
+get_notifications(sharer_id) before rating and got 1 existing notification
+(a playlist-add notification planted by seed data). Then called
+rate_song(rater.id, song.id, 5), which succeeded and returned a valid
+Rating object. Called get_notifications(sharer_id) again but only 1
+notification, unchanged. The rating saved correctly, but no notification
+was ever created for the sharer.
+
+**How I found the root cause**: Opened services/notification_service.py
+and compared rate_song() line-by-line against add_to_playlist() in the
+same file, since the two functions handle structurally similar situations
+(a user interacts with someone else's shared song). add_to_playlist()
+ends with a guarded call to create_notification():
+
+if song.shared_by != added_by_user_id:
+    create_notification(...)
+
+**The root cause**: rate_song() was never wired up to the notification
+system. The rating logic itself is
+correct and complete, but the function is simply missing the
+check-and-notify step that its sibling function (add_to_playlist())
+already implements for a different action. The pattern exists in the
+codebase; it was just never applied here.
+
+**My fix and side-effect check**: Added the same guarded
+create_notification() call used in add_to_playlist(), adapted to
+rate_song()'s own variables:
+
+if song.shared_by != user_id:
+    create_notification(
+        user_id=song.shared_by,
+        notification_type="song_rated",
+        body=f"{rater.username} rated your song '{song.title}' {score} stars.",
+    )
+
+Re-ran the reproduction test after the fix: notification count went from
+1 → 2, and the new entry read exactly as expected: song_rated - darius rated your song 'Midnight Drive' 5 stars. Confirmed the existing
+song_added_to_playlist notification was untouched.
+
+# Issue #5 - Last song in a playlist never shows up 
+
+**How I reproduced it**: Checked seed_data.py to confirm how many songs
+were seeded per playlist, whereeach of the 3 seeded playlists gets 7 songs
+(e.g. all_songs[:7] for "Late Night Vibes"). In flask shell, called
+get_playlist_songs() directly on that playlist's ID. Expected 7 songs
+back; got 6. Printed the titles — the 7th (last-added) song was missing
+from the result every time.
+
+**How I found the root cause**: Opened services/playlist_service.py
+and read get_playlist_songs(). The query itself correctly joins
+playlist_entries and orders by position. The bug was in the return
+statement:
+
+return [song.to_dict() for song in songs[:-1]]
+
+**The root cause**: songs[:-1] is a Python slice meaning "all but the
+last item." The slicing
+happens on the raw query results before formatting, silently discarding
+whichever song is last in position order, regardless of playlist size.
+
+**My fix and side-effect check**: Changed the return statement: 
+
+return [song.to_dict() for song in songs]
+
