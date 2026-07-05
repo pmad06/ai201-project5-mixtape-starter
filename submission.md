@@ -1,3 +1,13 @@
+## AI Usage
+
+Throughout this project, I used Claude for codebase navigation, understanding functions that had errors within them, and working through the debugging logic. 
+
+**Codebase orientation**: In order to understand all of the files quickly and thoroughly, I gave Claude the app's main files and asked it to summarize what each file consisted of and their overall relevance to the project. Rather then reading every file one by one, this was more helpful because I was able to conceptually understand the code rather than just understanding what each line does. 
+
+**Where AI helped correctly**: Claude was able to help for both issues #1 and #4. For Issue #1, Claude helped me understand the function where the incorrect elif statement was found and how exactly the streak was resetting. Once it explained what exactly the problem was within that function, it was easy to figure out how to solve the issue and how I needed to edit the code to do so. For Issue #4, Claude helped me figure out which functions I need to look into to figure out why the issue was occuring and the fix became a lot easier after understanding what was happening conceptually. 
+
+**Where AI was wrong**: Claude did not fully understand the code and was trying to come up with solutions for Issue #3 without actually testing it. Although it had all of the main files, the AI did not have the ability to actually test the code and determine whether it was right or not. However, after testing two different seeded songs, the results showed that neither one produced duplicate results. So, although the AI was trying to suggest a solution from simply reading the code, I dropped the issue instead and started working on the next one to save time and make more progress. 
+
 ## Codebase Map 
 
 # Main Files 
