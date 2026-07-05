@@ -38,7 +38,7 @@ Throughout this project, I used Claude for codebase navigation, understanding fu
 - playlist_entries is a richer join table (has position, added_by, added_at) compared to the plain friendships/song_tags tables.
 
 # Plan
-Tackling: streak reset (#1), search duplicates (#3), playlist last-song bug (#5) first 
+Tackling: streak reset (#1), no notification (#4), playlist last-song bug (#5) first 
 
 ## Root Cause Analysis 
 
